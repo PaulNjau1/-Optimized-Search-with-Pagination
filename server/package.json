@@ -13,8 +13,12 @@
     "@prisma/client": "^5.20.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.7.5",
+    "cors": "^2.8.5",
     "express": "^4.21.1",
     "pg": "^8.13.0",
     "prisma": "^5.20.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17"
   }
 }

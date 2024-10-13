@@ -1,32 +1,34 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import cors from 'cors';
 
 const app = express();
 const prisma = new PrismaClient();
 
+app.use(cors()); // Enable CORS
+
 app.use(express.json());
 
-// Search and Paginate
-app.get('/products', async (req, res) => {
-  const { page = 1, pageSize = 10, search = '', category = '', priceMin, priceMax } = req.query;
 
-  const skip = (Number(page) - 1) * Number(pageSize);
+app.get('/products', async (req: Request, res: Response) => {
+  const { search = '', category = '', priceMin, priceMax, page = '1', pageSize = '10' } = req.query;
 
   const filters: any = {
     AND: [],
   };
 
+  // Adding filters only if they exist
   if (search) {
     filters.AND.push({
-      OR: [
-        { name: { contains: String(search), mode: 'insensitive' } },
-        { description: { contains: String(search), mode: 'insensitive' } }
-      ],
+      name: {
+        contains: search,
+        mode: 'insensitive',
+      },
     });
   }
-
+  
   if (category) {
-    filters.AND.push({ category: String(category) });
+    filters.AND.push({ category });
   }
 
   if (priceMin) {
@@ -37,28 +39,36 @@ app.get('/products', async (req, res) => {
     filters.AND.push({ price: { lte: Number(priceMax) } });
   }
 
-  const products = await prisma.product.findMany({
-    where: filters,
-    skip,
-    take: Number(pageSize),
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+  const pageNum = Math.max(Number(page), 1);
+  const pageSizeNum = Math.max(Number(pageSize), 1);
+  const skip = (pageNum - 1) * pageSizeNum;
 
-  const totalProducts = await prisma.product.count({ where: filters });
+  try {
+    const [products, totalProducts] = await Promise.all([
+      prisma.product.findMany({
+        where: filters,
+        skip,
+        take: pageSizeNum,
+      }),
+      prisma.product.count({ where: filters }),
+    ]);
 
-  res.json({
-    data: products,
-    pagination: {
-      total: totalProducts,
-      page: Number(page),
-      pageSize: Number(pageSize),
-      totalPages: Math.ceil(totalProducts / Number(pageSize)),
-    },
-  });
+    res.json({
+      data: products,
+      pagination: {
+        totalProducts,
+        totalPages: Math.ceil(totalProducts / pageSizeNum),
+        currentPage: pageNum,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'An error occurred while fetching products.' });
+  }
 });
 
-app.listen(3000, () => {
-  console.log('Server running on port 3000');
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
